@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.pyc
+*.pyo
+*.pyd
+*.pyd
+*.pkl
+
+# Virtual environments
+venv/
+.env/
+.env.*
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# Logs
+*.log
+
+# Cache
+.cache/

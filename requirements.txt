@@ -1,0 +1,11 @@
+langchain-text-splitters
+langchain
+langchain-community
+langchainhub
+langchain-openai
+chromadb
+python-dotenv
+bs4
+wikipedia
+firecrawl
+langchain-ollama
