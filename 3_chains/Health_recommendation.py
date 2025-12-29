@@ -2,53 +2,79 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnableLambda
 from langchain_ollama import OllamaLLM
-user_input = input("Dear user please write up the situation you are dealing:")
 
-messages= [
-    ("system", "You are a life coaching assistant. "
-               "You are supposed to help the user find out more about their situation "
-               "so list top (max) 5 issues they are dealing with"),
-    ("human", "This is a story about my recent month of life including physical and mental difficulties that I have. {message}")
 
-]
+# ---------------------- CONSTANTS ----------------------
+SYSTEM_ISSUE_ANALYZER = (
+    "You are a life coaching assistant. "
+    "Analyze the user's situation and provide up to 5 key difficulties "
+    "they are dealing with."
+)
+
+SYSTEM_SOLUTION_ASSISTANT = (
+    "You are a helpful life coaching assistant. "
+    "You are given a list of 5 user difficulties produced by AI based on user's story."
+)
+
+
+# ---------------------- BASE MODEL ----------------------
 model = OllamaLLM(model="gemma3")
-prompt = ChatPromptTemplate.from_messages(messages)
+parser = StrOutputParser()
 
 
-def diet_solution_prompt(x):
-    prompt = ChatPromptTemplate.from_messages([
-        ("system","You are a life coaching assistant. You are given a list of 5 user's difficulties produced by ai and based on user's story."),
-        ("ai","{x}"),
-        ("human","for each difficulty suggest me a diet solution.")
-    ])
-    return prompt.invoke({"x":x})
+# ---------------------- PROMPTS ----------------------
+issue_prompt = ChatPromptTemplate.from_messages([
+    ("system", SYSTEM_ISSUE_ANALYZER),
+    ("human", "Here is my story: {message}")
+])
 
 
-def exercise_solution_prompt(x):
-    prompt = ChatPromptTemplate.from_messages([
-        ("system","You are a life coaching assistant. You are given a list of 5 user's difficulties produced by ai and based on user's story."),
-        ("ai","{x}"),
-        ("human","for each difficulty suggest me an exercise solution.")
-    ])
-    return prompt.invoke({"x":x})
-
-def combine_physical_mental(physical, metal):
-    return f"Diet solutions: {physical} \n\n Exercise solutions: {metal}\n\n"
+def build_solution_prompt(request_text: str, request_type: str):
+    """Reusable prompt builder for diet & exercise."""
+    return ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_SOLUTION_ASSISTANT),
+        ("ai", "{issues}"),
+        ("human", f"For each difficulty suggest me a {request_type} solution.")
+    ]).invoke({"issues": request_text})
 
 
-diet_runnable_chain=(RunnableLambda(lambda x: diet_solution_prompt(x)) | model | StrOutputParser())
-exercise_runnable_chain= (RunnableLambda(lambda x: exercise_solution_prompt(x)) | model | StrOutputParser())
+# ---------------------- RUNNABLE HELPERS ----------------------
+diet_chain = (
+    RunnableLambda(lambda issues: build_solution_prompt(issues, "diet"))
+    | model
+    | parser
+)
+
+exercise_chain = (
+    RunnableLambda(lambda issues: build_solution_prompt(issues, "exercise"))
+    | model
+    | parser
+)
+
+solution_chain = RunnableParallel({
+    "diet": diet_chain,
+    "exercise": exercise_chain
+})
 
 
-physical_or_mental_chain = RunnableParallel({"diet":diet_runnable_chain,"exercise":exercise_runnable_chain})
+def combine_solutions(diet: str, exercise: str) -> str:
+    return (
+        "===== Diet Solutions =====\n"
+        f"{diet}\n\n"
+        "===== Exercise Solutions =====\n"
+        f"{exercise}\n"
+    )
 
-combine_runnable_lambda = RunnableLambda(lambda x: combine_physical_mental(x["diet"], x["exercise"]))
+
+combine_chain = RunnableLambda(
+    lambda result: combine_solutions(result["diet"], result["exercise"])
+)
+
+# ---------------------- MAIN PIPELINE ----------------------
+chain = issue_prompt | model | parser | solution_chain | combine_chain
 
 
-chain = prompt | model | StrOutputParser() | physical_or_mental_chain | combine_runnable_lambda
-
-# chain = prompt | model | StrOutputParser()
-
-
-result = chain.invoke({"message":user_input})
-print(result)
+if __name__ == "__main__":
+    user_input = input("Dear user, please describe your situation:\n")
+    result = chain.invoke({"message": user_input})
+    print(result)
