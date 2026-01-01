@@ -3,43 +3,34 @@ from langchain_classic import hub
 from langchain_classic.agents import create_react_agent, AgentExecutor
 from langchain_classic.tools import Tool
 from langchain_ollama import OllamaLLM
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI   # Optional if you want OpenAI
 
-# Load environment variables from .env file
+import datetime
+
+# Load environment variables
 load_dotenv()
 
 
-# Define a very simple tool function that returns the current time
-def get_current_time(*args, **kwargs):
-    """Returns the current time in H:MM AM/PM format."""
-    import datetime  # Import datetime module to get current time
-
-    now = datetime.datetime.now()  # Get current time
-    return now.strftime("%I:%M %p")  # Format time in H:MM AM/PM format
+def get_current_time(*_args, **_kwargs) -> str:
+    """Return the current time in H:MM AM/PM format."""
+    return datetime.datetime.now().strftime("%I:%M %p")
 
 
-# List of tools available to the agent
 tools = [
     Tool(
-        name="Time",  # Name of the tool
-        func=get_current_time,  # Function that the tool will execute
-        # Description of the tool
-        description="Useful for when you need to know the current time",
+        name="Time",
+        func=get_current_time,
+        description="Returns the current local time.",
     ),
 ]
 
-# Pull the prompt template from the hub
-# ReAct = Reason and Action
-# https://smith.langchain.com/hub/hwchase17/react
+# Load ReAct prompt
 prompt = hub.pull("hwchase17/react")
 
-# Initialize a ChatOpenAI model
-# llm = ChatOpenAI(
-#     model="gpt-4o", temperature=0
-# )
+# Choose your model
+llm = OllamaLLM(model="gemma3")
+# llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-llm=OllamaLLM(model="gemma3")
-# Create the ReAct agent using the create_react_agent function
 agent = create_react_agent(
     llm=llm,
     tools=tools,
@@ -47,15 +38,11 @@ agent = create_react_agent(
     stop_sequence=True,
 )
 
-# Create an agent executor from the agent and tools
 agent_executor = AgentExecutor.from_agent_and_tools(
     agent=agent,
     tools=tools,
     verbose=True,
 )
 
-# Run the agent with a test query
 response = agent_executor.invoke({"input": "What time is it?"})
-
-# Print the response from the agent
-print("response:", response)
+print("Response:", response)
